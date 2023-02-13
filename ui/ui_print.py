@@ -7,17 +7,10 @@ sameline_log = False
 config_dir = "."
 
 def ui_cls(path=''):
-    os.system('cls' if os.name == 'nt' else 'clear')
     logo(path=path)
 
 def logo(path=''):
-    print('                                                         ')
-    print('           __                  __     __         _     __')
-    print('    ____  / /__  _  __    ____/ /__  / /_  _____(_)___/ /')
-    print('   / __ \/ / _ \| |/_/   / __  / _ \/ __ \/ ___/ / __  / ')
-    print('  / /_/ / /  __/>  <    / /_/ /  __/ /_/ / /  / / /_/ /  ')
-    print(' / .___/_/\___/_/|_|____\__,_/\___/_.___/_/  /_/\__,_/   ')
-    print('/_/               /_____/                         [v' + ui_settings.version[0] + ']')
+    print('plex_debrid [v' + ui_settings.version[0] + ']')
     print()
     print(path)
     print()
