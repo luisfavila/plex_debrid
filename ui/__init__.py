@@ -8,6 +8,8 @@ from ui import ui_settings
 from ui.ui_print import *
 from settings import *
 
+#import uvicorn
+
 config_dir = ""
 service_mode = False
 
@@ -63,7 +65,7 @@ def scrape():
     obj = releases.release('', '', '', [], 0, [])
     indices = []
     for index, version in enumerate(releases.sort.versions):
-        print(str(index + 1) + ') ' + version[0])
+        print(str(index + 1) + ') ' + version[0] + (' (disabled)' if '\u0336' in version[0] else ''))
         indices += [str(index + 1)]
     print(str(index + 2) + ') Scrape without defining a version')
     indices += [str(index + 2)]
@@ -78,101 +80,102 @@ def scrape():
         obj.version = None
     else:
         return
-    ui_cls('Options/Scraper/')
-    print('Press Enter to return to the main menu.')
-    print()
-    query = input("Enter a query: ")
-    if query == '':
-        return
-    print()
-    if hasattr(obj,"version"):
-        if not obj.version == None:
-            for trigger, operator, value in obj.version.triggers:
-                if trigger == "scraper sources":
-                    if operator in ["==","include"]:
-                        if value in scraper.services.active:
-                            scraper.services.overwrite += [value]
-                    elif operator == "exclude":
-                        if value in scraper.services.active:
-                            for s in scraper.services.active:
-                                if not s == value:
-                                    scraper.services.overwrite += [s]
-                if trigger == "scraping adjustment":
-                    if operator == "add text before title":
-                        query = value + query
-                    elif operator == "add text after title":
-                        query = query + value
-    scraped_releases = scraper.scrape(query)
-    if len(scraped_releases) > 0:
-        obj.Releases = scraped_releases
-        debrid.check(obj, force=True)
-        scraped_releases = obj.Releases
-        if not obj.version == None:
-            releases.sort(scraped_releases, obj.version)
-        back = False
-        while not back:
-            ui_cls('Options/Scraper/')
-            print("0) Back")
-            releases.print_releases(scraped_releases)
-            print()
-            print("Type 'auto' to automatically download the first cached release.")
-            print()
-            choice = input("Choose a release to download: ")
-            try:
-                if choice == 'auto':
-                    release = scraped_releases[0]
-                    release.Releases = scraped_releases
-                    release.type = ("show" if regex.search(r'(S[0-9]+|SEASON|E[0-9]+|EPISODE|[0-9]+-[0-9])',release.title,regex.I) else "movie")
-                    if debrid.download(release, stream=True, query=query, force=True):
-                        content.classes.media.collect(release)
-                        scraped_releases.remove(scraped_releases[0])
-                        time.sleep(3)
-                    else:
-                        print()
-                        print("These releases do not seem to be cached on your debrid services. Add uncached torrent?")
-                        print()
-                        print("0) Back")
-                        print("1) Add uncached torrent")
-                        print()
-                        choice = input("Choose an action: ")
-                        if choice == '1':
-                            debrid.download(release, stream=False, query=query, force=True)
+    while True:
+        ui_cls('Options/Scraper/')
+        print('Press Enter to return to the main menu.')
+        print()
+        query = input("Enter a query: ")
+        if query == '':
+            return
+        print()
+        if hasattr(obj,"version"):
+            if not obj.version == None:
+                for trigger, operator, value in obj.version.triggers:
+                    if trigger == "scraper sources":
+                        if operator in ["==","include"]:
+                            if value in scraper.services.active:
+                                scraper.services.overwrite += [value]
+                        elif operator == "exclude":
+                            if value in scraper.services.active:
+                                for s in scraper.services.active:
+                                    if not s == value:
+                                        scraper.services.overwrite += [s]
+                    if trigger == "scraping adjustment":
+                        if operator == "add text before title":
+                            query = value + query
+                        elif operator == "add text after title":
+                            query = query + value
+        scraped_releases = scraper.scrape(query)
+        if len(scraped_releases) > 0:
+            obj.Releases = scraped_releases
+            debrid.check(obj, force=True)
+            scraped_releases = obj.Releases
+            if not obj.version == None:
+                releases.sort(scraped_releases, obj.version)
+            back = False
+            while not back:
+                ui_cls('Options/Scraper/')
+                print("0) Back")
+                releases.print_releases(scraped_releases)
+                print()
+                print("Type 'auto' to automatically download the first cached release.")
+                print()
+                choice = input("Choose a release to download: ")
+                try:
+                    if choice == 'auto':
+                        release = scraped_releases[0]
+                        release.Releases = scraped_releases
+                        release.type = ("show" if regex.search(r'(S[0-9]+|SEASON|E[0-9]+|EPISODE|[0-9]+-[0-9])',release.title,regex.I) else "movie")
+                        if debrid.download(release, stream=True, query=query, force=True):
                             content.classes.media.collect(release)
                             scraped_releases.remove(scraped_releases[0])
                             time.sleep(3)
-                elif int(choice) <= len(scraped_releases) and not int(choice) <= 0:
-                    release = scraped_releases[int(choice) - 1]
-                    release.Releases = [release, ]
-                    release.type = ("show" if regex.search(r'(S[0-9]+|SEASON|E[0-9]+|EPISODE|[0-9]+-[0-9])',release.title,regex.I) else "movie")
-                    if debrid.download(release, stream=True, query=release.title, force=True):
-                        content.classes.media.collect(release)
-                        scraped_releases.remove(scraped_releases[int(choice) - 1])
-                        time.sleep(3)
-                    else:
-                        print()
-                        print(
-                            "This release does not seem to be cached on your debrid services. Add uncached torrent?")
-                        print()
-                        print("0) Back")
-                        print("1) Add uncached torrent")
-                        print()
-                        choice2 = input("Choose an action: ")
-                        if choice2 == '1':
-                            if debrid.download(release, stream=False, query=query, force=True):
+                        else:
+                            print()
+                            print("These releases do not seem to be cached on your debrid services. Add uncached torrent?")
+                            print()
+                            print("0) Back")
+                            print("1) Add uncached torrent")
+                            print()
+                            choice = input("Choose an action: ")
+                            if choice == '1':
+                                debrid.download(release, stream=False, query=query, force=True)
                                 content.classes.media.collect(release)
-                                scraped_releases.remove(scraped_releases[int(choice) - 1])
+                                scraped_releases.remove(scraped_releases[0])
                                 time.sleep(3)
-                            else:
-                                print()
-                                print(
-                                    "There was an error adding this uncached torrent to your debrid service. Choose another release?")
-                elif choice == '0':
-                    back = True
-            except:
-                back = False
-    else:
-        print("No releases were found!")
-        time.sleep(3)
+                    elif int(choice) <= len(scraped_releases) and not int(choice) <= 0:
+                        release = scraped_releases[int(choice) - 1]
+                        release.Releases = [release, ]
+                        release.type = ("show" if regex.search(r'(S[0-9]+|SEASON|E[0-9]+|EPISODE|[0-9]+-[0-9])',release.title,regex.I) else "movie")
+                        if debrid.download(release, stream=True, query=release.title, force=True):
+                            content.classes.media.collect(release)
+                            scraped_releases.remove(scraped_releases[int(choice) - 1])
+                            time.sleep(3)
+                        else:
+                            print()
+                            print(
+                                "This release does not seem to be cached on your debrid services. Add uncached torrent?")
+                            print()
+                            print("0) Back")
+                            print("1) Add uncached torrent")
+                            print()
+                            choice2 = input("Choose an action: ")
+                            if choice2 == '1':
+                                if debrid.download(release, stream=False, query=query, force=True):
+                                    content.classes.media.collect(release)
+                                    scraped_releases.remove(scraped_releases[int(choice) - 1])
+                                    time.sleep(3)
+                                else:
+                                    print()
+                                    print(
+                                        "There was an error adding this uncached torrent to your debrid service. Choose another release?")
+                    elif choice == '0':
+                        back = True
+                except:
+                    back = False
+        else:
+            print("No releases were found!")
+            time.sleep(3)
 
 def settings():
     back = False
@@ -222,7 +225,7 @@ def options():
         option('Ignored Media', current_module, 'ignored'),
         option('Scraper', current_module, 'scrape'),
     ]
-    ui_cls('Options/')
+    ui_cls('Options/',update=update_available())
     for index, option_ in enumerate(list):
         print(str(index + 1) + ') ' + option_.name)
     print()
@@ -340,11 +343,26 @@ def run(cdir = "", smode = False):
     service_mode = smode
     set_log_dir(config_dir)
     if setup():
+        #uvicorn.run("webui:app", port=8008, reload=True)
         options()
     else:
         load()
+        #uvicorn.run("webui:app", port=8008, reload=True)
         download_script_run()
         options()
+
+def update_available():
+    try:
+        response = requests.get('https://raw.githubusercontent.com/itsToggle/plex_debrid/main/ui/ui_settings.py',timeout=0.25)
+        response = response.content.decode()
+        if regex.search("(?<=')([0-9]+\.[0-9]+)(?=')",response):
+            v = regex.search("(?<=')([0-9]+\.[0-9]+)(?=')",response).group()
+            if float(ui_settings.version[0]) < float(v):
+                return " | [v"+v+"] available!"
+            return ""
+        return ""
+    except:
+        return ""
 
 def update(settings, version):
     ui_cls('/Update ' + version[0] + '/')
@@ -366,6 +384,18 @@ def update(settings, version):
                 elif setting.name == 'version':
                     settings[setting.name] = setting.get()
 
+def unique(lst):
+    unique_objects = []
+    for obj in lst:
+        is_unique = True
+        for unique_obj in unique_objects:
+            if unique_obj == obj:
+                is_unique = False
+                break
+        if is_unique:
+            unique_objects.append(obj)
+    return unique_objects
+
 def threaded(stop):
     ui_cls()
     if service_mode == True:
@@ -376,65 +406,121 @@ def threaded(stop):
     regular_check = 1800
     timeout_counter = 0
     library = content.classes.library()[0]()
+    # get entire plex_watchlist
+    plex_watchlist = content.services.plex.watchlist()
+    # get entire trakt_watchlist
+    trakt_watchlist = content.services.trakt.watchlist()
+    # get all overseerr request
+    overseerr_requests = content.services.overseerr.requests()
+    # combine all content, sort by newest
+    watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
+    try:
+        watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
+    except:
+        ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
     if len(library) > 0:
-        # get entire plex_watchlist
-        plex_watchlist = content.services.plex.watchlist()
-        # get entire trakt_watchlist
-        trakt_watchlist = content.services.trakt.watchlist()
-        # get all overseerr request
-        overseerr_requests = content.services.overseerr.requests()
-        # combine all content, sort by newest
-        watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
-        try:
-            watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
-        except:
-            ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
         ui_print('checking new content ...')
-        for element in watchlists:
+        t0 = time.time()
+        for element in unique(watchlists):
             if hasattr(element, 'download'):
                 element.download(library=library)
+                t1 = time.time()
+                #if more than 5 seconds have passed, check for newly watchlisted content
+                if t1-t0 >= 5:
+                    if plex_watchlist.update() or overseerr_requests.update() or trakt_watchlist.update():
+                        library = content.classes.library()[0]()
+                        if len(library) == 0:
+                            continue
+                        new_watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
+                        try:
+                            new_watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
+                        except:
+                            ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
+                        new_watchlists = unique(new_watchlists)
+                        for element in new_watchlists[:]:
+                            if element in watchlists:
+                                new_watchlists.remove(element)
+                        ui_print('checking new content ...')
+                        for element in new_watchlists:
+                            if hasattr(element, 'download'):
+                                element.download(library=library)
+                        ui_print('done')
+                    t0 = time.time()
         ui_print('done')
-        while not stop():
-            if plex_watchlist.update() or overseerr_requests.update() or trakt_watchlist.update():
-                library = content.classes.library()[0]()
-                if len(library) == 0:
-                    continue
-                watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
-                try:
-                    watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
-                except:
-                    ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
-                ui_print('checking new content ...')
-                for element in watchlists:
-                    if hasattr(element, 'download'):
-                        if not element in content.classes.media.ignore_queue:
-                            element.download(library=library)
-                ui_print('done')
-            elif timeout_counter >= regular_check:
-                # get entire plex_watchlist
-                plex_watchlist = content.services.plex.watchlist()
-                # get entire trakt_watchlist
-                trakt_watchlist = content.services.trakt.watchlist()
-                # get all overseerr request, match content to plex media type and add to monitored list
-                overseerr_requests = content.services.overseerr.requests()
-                # combine all content, sort by newest
-                watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
-                try:
-                    watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
-                except:
-                    ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
-                library = content.classes.library()[0]()
-                timeout_counter = 0
-                if len(library) == 0:
-                    continue
-                ui_print('checking new content ...')
-                for element in watchlists:
-                    if hasattr(element, 'download'):
+    while not stop():
+        if plex_watchlist.update() or overseerr_requests.update() or trakt_watchlist.update():
+            library = content.classes.library()[0]()
+            if len(library) == 0:
+                continue
+            watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
+            try:
+                watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
+            except:
+                ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
+            ui_print('checking new content ...')
+            for element in unique(watchlists):
+                if hasattr(element, 'download'):
+                    newly_added = True
+                    if element.type == "show":
+                        for season in element.Seasons:
+                            if season in content.classes.media.ignore_queue or not newly_added:
+                                newly_added = False
+                                break
+                            for episode in season.Episodes:
+                                if episode in content.classes.media.ignore_queue:
+                                    newly_added = False
+                                    break
+                    if newly_added:
                         element.download(library=library)
-                ui_print('done')
-            else:
-                timeout_counter += timeout
-            time.sleep(timeout)
+            ui_print('done')
+        elif timeout_counter >= regular_check:
+            # get entire plex_watchlist
+            plex_watchlist = content.services.plex.watchlist()
+            # get entire trakt_watchlist
+            trakt_watchlist = content.services.trakt.watchlist()
+            # get all overseerr request, match content to plex media type and add to monitored list
+            overseerr_requests = content.services.overseerr.requests()
+            # combine all content, sort by newest
+            watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
+            try:
+                watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
+            except:
+                ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
+            library = content.classes.library()[0]()
+            timeout_counter = 0
+            if len(library) == 0:
+                continue
+            ui_print('checking new content ...')
+            t0 = time.time()
+            for element in unique(watchlists):
+                if hasattr(element, 'download'):
+                    element.download(library=library)
+                    t1 = time.time()
+                    #if more than 5 seconds have passed, check for newly watchlisted content
+                    if t1-t0 >= 5:
+                        if plex_watchlist.update() or overseerr_requests.update() or trakt_watchlist.update():
+                            library = content.classes.library()[0]()
+                            if len(library) == 0:
+                                continue
+                            new_watchlists = plex_watchlist + trakt_watchlist + overseerr_requests
+                            try:
+                                new_watchlists.data.sort(key=lambda s: s.watchlistedAt,reverse=True)
+                            except:
+                                ui_print("couldnt sort monitored media by newest, using default order.", ui_settings.debug)
+                            new_watchlists = unique(new_watchlists)
+                            for element in new_watchlists[:]:
+                                if element in watchlists:
+                                    new_watchlists.remove(element)
+                            ui_print('checking new content ...')
+                            for element in new_watchlists:
+                                if hasattr(element, 'download'):
+                                    element.download(library=library)
+                            ui_print('done')
+                        t0 = time.time()
+            ui_print('done')
+        else:
+            timeout_counter += timeout
+        time.sleep(timeout)
 
 def download_script_run():
     if preflight():

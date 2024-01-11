@@ -7,7 +7,7 @@ from content.services import trakt
 from ui.ui_print import *
 
 name = 'Overseerr'
-base_url = "http://localhost:5055"
+base_url = ""
 users = ['all']
 allowed_movie_status = [['2'], ['3']]
 allowed_show_status = [['2'], ['3'], ['4'], ['5']]
@@ -275,6 +275,7 @@ class requests(classes.watchlist):
                 try:
                     element.match(matching_service)
                     element.watchlist = sys.modules[matching_service].watchlist
+                    element.request_id = element_.media.id
                     add += [element]
                 except:
                     ui_print('[overseerr] error: couldnt match item to service ' + matching_service, ui_settings.debug)
@@ -290,7 +291,7 @@ class requests(classes.watchlist):
             try:
                 response = get(base_url + '/api/v1/request?take=10000')
                 for element_ in response.results:
-                    if not element_.id in (x.id for x in last_requests) and (element_.requestedBy.displayName in users or users == ['all']) and ([str(element_.media.status)] in allowed_movie_status if element_.type == 'movie' else [str(element_.media.status)] in allowed_show_status):
+                    if not any(x.id == element_.id and x.updatedAt == element_.updatedAt for x in last_requests) and (element_.requestedBy.displayName in users or users == ['all']) and ([str(element_.media.status)] in allowed_movie_status if element_.type == 'movie' else [str(element_.media.status)] in allowed_show_status):
                         ui_print('[overseerr] found new overseerr request by user "' + element_.requestedBy.displayName + '".')
                         refresh = True
                         last_requests.append(element_)
@@ -312,8 +313,15 @@ class requests(classes.watchlist):
                             element.watchlist = sys.modules[matching_service].watchlist
                         except:
                             ui_print('[overseerr] error: couldnt match item to service ' + matching_service, ui_settings.debug)
+                        element.request_id = element_.media.id
                         if not element in self.data:
                             self.data.append(element)
+                        else:
+                            existing = next(x for x in self.data if x == element)
+                            if element.type == "show":
+                                for season in element.Seasons:
+                                    if not any(season.index == x.index for x in existing.Seasons):
+                                        existing.Seasons.append(season)
                         ui_print('done')
                 for element in last_requests[:]:
                     if not element.id in (x.id for x in response.results):
@@ -323,3 +331,54 @@ class requests(classes.watchlist):
             except:
                 return False
         return False
+
+class library():
+    name = 'Overseerr Requests'
+
+    class refresh(classes.refresh):
+        name = 'Overseerr Requests'
+
+        def setup(cls, new=False):
+            ui_cls("Options/Settings/Library Services/Library update services")
+            from settings import settings_list
+            settings = []
+            for category, allsettings in settings_list:
+                for setting in allsettings:
+                    settings += [setting]
+            if len(api_key) == 0:
+                print("It looks like you havent setup an overseerr api key. Please set up an overseerr api key first.")
+                print()
+                for setting in settings:
+                    if setting.name == "Overseerr API Key":
+                        setting.setup()
+            if not new:
+                if not library.refresh.name in classes.refresh.active:
+                    classes.refresh.active += [library.refresh.name]
+                    print()
+                    print("Successfully added Overserr!")
+                    print()
+                    time.sleep(3)
+                else:
+                    print()
+                    print("Nothing to edit!")
+                    print()
+                    time.sleep(3)
+                return
+            else:
+                if not library.refresh.name in classes.refresh.active:
+                    classes.refresh.active += [library.refresh.name]
+                    print()
+                    print("Successfully added Overserr!")
+                    print()
+                    time.sleep(3)
+                return
+
+        def __new__(cls, element):
+            try:
+                if not hasattr(element,"request_id"):
+                    return
+                ui_print('[overserr] marking request as available')
+                url = base_url + "/api/v1/media/" + str(element.request_id) + "/available"
+                response = post(url,'{"is4k":false}')
+            except:
+                print("[overserr] error: couldnt mark requests as available")

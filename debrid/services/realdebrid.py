@@ -38,6 +38,7 @@ def logerror(response):
 def get(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36','authorization': 'Bearer ' + api_key}
+    response = None
     try:
         response = session.get(url, headers=headers)
         logerror(response)
@@ -51,6 +52,7 @@ def get(url):
 def post(url, data):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36','authorization': 'Bearer ' + api_key}
+    response = None
     try:
         response = session.post(url, headers=headers, data=data)
         logerror(response)
@@ -83,16 +85,19 @@ class file:
         self.size = size / 1000000000
         self.match = ''
         wanted = False
-        for key in wanted_list:
-            if regex.search(r'(' + key + ')', self.name, regex.I):
+        unwanted = False
+        for key, wanted_pattern in wanted_list:
+            if wanted_pattern.search(self.name):
                 wanted = True
                 self.match = key
                 break
-        unwanted = False
-        for key in unwanted_list:
-            if regex.search(r'(' + key + ')', self.name, regex.I) or self.name.endswith('.exe') or self.name.endswith('.txt'):
-                unwanted = True
-                break
+
+        if not wanted:
+            for key, unwanted_pattern in unwanted_list:
+                if unwanted_pattern.search(self.name) or self.name.endswith('.exe') or self.name.endswith('.txt'):
+                    unwanted = True
+                    break
+
         self.wanted = wanted
         self.unwanted = unwanted
 
@@ -105,7 +110,9 @@ class version:
         self.needed = 0
         self.wanted = 0
         self.unwanted = 0
+        self.size = 0
         for file in self.files:
+            self.size += file.size
             if file.wanted:
                 self.wanted += 1
             if file.unwanted:
@@ -121,7 +128,7 @@ def download(element, stream=True, query='', force=False):
         wanted = element.files()
     for release in cached[:]:
         # if release matches query
-        if regex.match(r'(' + query.replace('.', '\.').replace("\.*", ".*") + ')', release.title,regex.I) or force:
+        if regex.match(query, release.title,regex.I) or force:
             if stream:
                 release.size = 0
                 for version in release.files:
@@ -139,11 +146,9 @@ def download(element, stream=True, query='', force=False):
                                 continue
                             response = post('https://api.real-debrid.com/rest/1.0/torrents/selectFiles/' + torrent_id,{'files': str(','.join(cached_ids))})
                             response = get('https://api.real-debrid.com/rest/1.0/torrents/info/' + torrent_id)
+                            actual_title = ""
                             if len(response.links) == len(cached_ids):
-                                if not hasattr(element,"downloaded_releases"):
-                                    element.downloaded_releases = [response.filename]
-                                else:
-                                    element.downloaded_releases += [response.filename]
+                                actual_title = response.filename
                                 release.download = response.links
                             else:
                                 if response.status in ["queued","magnet_convesion","downloading","uploading"]:
@@ -170,8 +175,10 @@ def download(element, stream=True, query='', force=False):
                                         break
                                 release.files = version.files
                                 ui_print('[realdebrid] adding cached release: ' + release.title)
+                                if not actual_title == "":
+                                    release.title = actual_title
                                 return True
-                ui_print('done')
+                ui_print('[realdebrid] error: no streamable version could be selected for release: ' + release.title)
                 return False
             else:
                 try:
@@ -193,6 +200,9 @@ def check(element, force=False):
     else:
         wanted = element.files()
     unwanted = releases.sort.unwanted
+    wanted_patterns = list(zip(wanted, [regex.compile(r'(' + key + ')', regex.IGNORECASE) for key in wanted]))
+    unwanted_patterns = list(zip(unwanted, [regex.compile(r'(' + key + ')', regex.IGNORECASE) for key in unwanted]))
+
     hashes = []
     for release in element.Releases[:]:
         if len(release.hash) == 40:
@@ -202,15 +212,20 @@ def check(element, force=False):
             element.Releases.remove(release)
     if len(hashes) > 0:
         response = get('https://api.real-debrid.com/rest/1.0/torrents/instantAvailability/' + '/'.join(hashes))
+        ui_print("[realdebrid] checking and sorting all release files ...", ui_settings.debug)
         for release in element.Releases:
             release.files = []
-            if hasattr(response, release.hash.lower()):
-                if hasattr(getattr(response, release.hash.lower()), 'rd'):
-                    if len(getattr(response, release.hash.lower()).rd) > 0:
-                        for cashed_version in getattr(response, release.hash.lower()).rd:
+            release_hash = release.hash.lower()
+            if hasattr(response, release_hash):
+                response_attr = getattr(response, release_hash)
+                if hasattr(response_attr, 'rd'):
+                    rd_attr = response_attr.rd
+                    if len(rd_attr) > 0:
+                        for cashed_version in rd_attr:
                             version_files = []
                             for file_ in cashed_version.__dict__:
-                                debrid_file = file(file_,getattr(cashed_version, file_).filename,getattr(cashed_version, file_).filesize,wanted, unwanted)
+                                file_attr = getattr(cashed_version, file_)
+                                debrid_file = file(file_, file_attr.filename, file_attr.filesize, wanted_patterns, unwanted_patterns)
                                 version_files.append(debrid_file)
                             release.files += [version(version_files), ]
                         # select cached version that has the most needed, most wanted, least unwanted files and most files overall
@@ -219,5 +234,7 @@ def check(element, force=False):
                         release.files.sort(key=lambda x: x.unwanted, reverse=False)
                         release.wanted = release.files[0].wanted
                         release.unwanted = release.files[0].unwanted
+                        release.size = release.files[0].size
                         release.cached += ['RD']
                         continue
+        ui_print("done",ui_settings.debug)

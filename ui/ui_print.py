@@ -6,11 +6,11 @@ sameline = False
 sameline_log = False
 config_dir = "."
 
-def ui_cls(path=''):
-    logo(path=path)
+def ui_cls(path='',update=""):
+    logo(path=path,update=update)
 
-def logo(path=''):
-    print('plex_debrid [v' + ui_settings.version[0] + ']')
+def logo(path='',update=""):
+    print('plex_debrid [v' + ui_settings.version[0] + ']' + update)
     print()
     print(path)
     print()

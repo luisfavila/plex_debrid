@@ -1,6 +1,7 @@
 from base import *
 #import child modules
 from debrid import services
+from ui.ui_print import *
 
 tracker = []
 downloading = []
@@ -23,6 +24,12 @@ def download(element, stream=True, query='', force=False):
                     if service.download(element, stream=stream, query=query, force=force):
                         downloaded = True
                         downloaded_files += element.Releases[0].files
+                        if not hasattr(element,"existing_releases"):
+                            element.existing_releases = []
+                        if not hasattr(element,"downloaded_releases"):
+                            element.downloaded_releases = []
+                        element.existing_releases += [element.Releases[0].title]
+                        element.downloaded_releases += [element.Releases[0].title]
                         break
             if downloaded:
                 break
@@ -44,11 +51,15 @@ def download(element, stream=True, query='', force=False):
                         if service.download(element, stream=stream, query=query, force=force):
                             downloaded = True
                             downloaded_files += element.Releases[0].files
+                            element.existing_releases += [element.Releases[0].title]
+                            element.downloaded_releases += [element.Releases[0].title]
                             break
                 else:
                     if service.download(element, stream=stream, query=query, force=force):
                         downloaded = True
                         downloaded_files += element.Releases[0].files
+                        element.existing_releases += [element.Releases[0].title]
+                        element.downloaded_releases += [element.Releases[0].title]
                         break
             if downloaded:
                 break
@@ -58,5 +69,20 @@ def download(element, stream=True, query='', force=False):
 
 # Check Method:
 def check(element, force=False):
-    for service in services.get():
-        service.check(element, force=force)
+    if len(element.Releases) == 0:
+        return
+    checked = []
+    for release in element.Releases[:]:
+        if release.checked:
+            checked += [release]
+            element.Releases.remove(release)
+    activeservices = services.active
+    if len(element.Releases) > 0:
+        ui_print("checking cache status for scraped releases on: [" + "],[".join(activeservices) + "] ...")
+        for service in services.get():
+            service.check(element, force=force)
+        ui_print("done")
+    for release in checked:
+        element.Releases += [release]
+    for release in element.Releases:
+        release.checked = True
